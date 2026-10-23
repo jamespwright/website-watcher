@@ -1,0 +1,10 @@
+{
+  "captured_at": "2026-10-23T00:00:00+11:00",
+  "model": "my",
+  "vehicles": [
+    {"vin": "LRWYHCEK7RC384357", "trim": "Long Range All-Wheel Drive", "year": 2024, "odometer": 57851, "paint": "WHITE", "city": "Oakleigh South", "state": "VIC", "in_transit": false, "first_registered": "2024-08-21", "prices": {"VIC": 47980}},
+    {"vin": "LRWYHCEK8PC061173", "trim": "Long Range All-Wheel Drive", "year": 2023, "odometer": 56894, "paint": "GREY", "city": "Mulgrave", "state": "VIC", "in_transit": false, "first_registered": "2023-09-01", "prices": {"ACT": 49926, "NSW": 50460, "NT": 48273, "QLD": 49556, "SA": 50440, "TAS": 50178, "VIC": 50859, "WA": 51684}},
+    {"vin": "LRWYHCEK0PC997269", "trim": "Long Range All-Wheel Drive", "year": 2023, "odometer": 35507, "paint": "WHITE", "city": "Mascot", "state": "NSW", "in_transit": true, "first_registered": "2023-07-25", "prices": {"ACT": 50966, "NSW": 51510, "NT": 49273, "QLD": 50576, "SA": 51480, "TAS": 51218, "VIC": 51901, "WA": 52818}},
+    {"vin": "LRWYHCEK3PC906947", "trim": "Long Range All-Wheel Drive", "year": 2023, "odometer": 36579, "paint": "WHITE", "city": "Mascot", "state": "NSW", "in_transit": false, "first_registered": "2023-07-12", "prices": {"ACT": 50966, "NSW": 51510, "NT": 49273, "QLD": 50576, "SA": 51480, "TAS": 51218, "VIC": 51901, "WA": 52818}}
+  ]
+}

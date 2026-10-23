@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0c0e12" media="(prefers-color-scheme: dark)">
+  <title>Watcher</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232b5cff'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='white' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/" aria-label="Watcher home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">Watcher</span>
+      </a>
+      <select id="profile" class="profile-select" aria-label="Profile" hidden></select>
+      <div class="topbar-actions">
+        <button id="run" class="btn btn-primary" type="button">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4"/></svg>
+          <span class="run-label">Run now</span>
+        </button>
+        <button id="theme" class="btn btn-icon" type="button" aria-label="Toggle theme" title="Theme">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <div class="hero-text">
+        <h1 id="title">Loading…</h1>
+        <p id="subtitle" class="muted"></p>
+      </div>
+      <div id="sources" class="sources" aria-label="Sources on the last run"></div>
+    </section>
+
+    <section id="stats" class="stats" aria-label="Summary"></section>
+
+    <section class="viewbar">
+      <div class="segmented" role="tablist" aria-label="What to show">
+        <button role="tab" data-view="matches" aria-selected="true">Profile matches</button>
+        <button role="tab" data-view="all" aria-selected="false">Everything stored</button>
+      </div>
+      <div id="rules" class="rules"></div>
+    </section>
+
+    <div class="layout">
+      <aside id="filters" class="filters" aria-label="Filters">
+        <div class="filters-head">
+          <h2>Filters</h2>
+          <button id="reset" class="btn btn-ghost btn-sm" type="button">Reset</button>
+          <button id="close-filters" class="btn btn-icon btn-sm only-mobile" type="button" aria-label="Close filters">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <div id="facets" class="facets"></div>
+        <div class="filters-foot only-mobile">
+          <button id="apply-filters" class="btn btn-primary btn-block" type="button">Show results</button>
+        </div>
+      </aside>
+      <div id="scrim" class="scrim" hidden></div>
+
+      <section class="results" aria-live="polite">
+        <div class="toolbar">
+          <label class="search">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input id="q" type="search" placeholder="Search title, seller, location…" autocomplete="off">
+          </label>
+          <button id="open-filters" class="btn btn-outline only-mobile" type="button">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            Filters <span id="filter-count" class="count-badge" hidden></span>
+          </button>
+          <label class="select">
+            <span class="sr-only">Sort</span>
+            <select id="sort"></select>
+          </label>
+          <div class="segmented segmented-sm" role="group" aria-label="Layout">
+            <button data-layout="grid" aria-pressed="true" title="Cards">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+              <span class="sr-only">Cards</span>
+            </button>
+            <button data-layout="table" aria-pressed="false" title="Table">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+              <span class="sr-only">Table</span>
+            </button>
+          </div>
+        </div>
+        <div id="active" class="active-filters"></div>
+        <div id="list"></div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="detail" class="sheet" aria-labelledby="detail-title"></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="tip" class="tip" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

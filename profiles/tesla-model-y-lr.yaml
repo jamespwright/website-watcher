@@ -1,0 +1,49 @@
+# What to look for. Placeholder values - edit to taste.
+name: Tesla Model Y Long Range (VIC)
+domain: cars
+
+# Sources to query (see `python -m watcher sources`).
+sources: [melbournescheapestcars, cars24, tesla, carsales, drive, autotrader]
+
+# Hints passed to every source so they can narrow the search server-side.
+search:
+  make: Tesla
+  model: Model Y
+  badges: [Long Range, Long Range Launch Series]
+  state: VIC
+  postcode: "3056"
+
+# Site-specific extras, keyed by source name.
+source_options:
+  tesla:
+    TRIM: MY_LR_AWD
+    RegistrationProvince: VIC
+
+# Map messy per-site values onto one canonical value (regex, first match wins).
+aliases:
+  badge:
+    Long Range Launch Series: ['launch series']
+    Performance: ['performance']
+    Long Range: ['long range', '\blr\b', 'dual motor']
+    Rear-Wheel Drive: ['rear.wheel', '\brwd\b', 'standard range']
+
+# Every rule here must pass or the listing is dropped.
+#   field: value          -> equals (case-insensitive)
+#   field: [a, b]         -> one of
+#   field: {lte: 1, ...}  -> eq ne in not_in lt lte gt gte contains regex exists
+required:
+  make: Tesla
+  model: Model Y
+  badge: [Long Range, Long Range Launch Series]
+  state: VIC
+  status: available
+  price: {lte: 55000}
+
+# Nice-to-haves: each one that passes adds its weight (default 1) to the score.
+optional:
+  odometer: {lte: 50000, weight: 2}
+  year: {gt: 2023}
+  colour: [White]
+
+display: [year, badge, price, odometer, colour, location, status]
+sort: [-score, price]
