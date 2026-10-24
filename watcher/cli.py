@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -55,13 +56,18 @@ def cmd_db(args: argparse.Namespace, console: Console) -> int:
 
 
 def cmd_web(args: argparse.Namespace, console: Console) -> int:
-    from watcher.web.server import serve
+    from watcher.web.server import parse_times, serve
 
     profiles = [Path(p) for p in args.profiles] or sorted(PROFILES.glob("*.yaml"))
     if not profiles:
         console.print(f"[red]No profiles given and none found in {PROFILES}")
         return 2
-    serve(profiles, Path(args.db), args.host, args.port, say=console.print)
+    try:
+        schedule = parse_times(args.schedule or os.environ.get("WATCHER_SCHEDULE", ""))
+    except ValueError as e:
+        console.print(f"[red]Bad --schedule (want e.g. 06:00,12:00,18:00): {e}")
+        return 2
+    serve(profiles, Path(args.db), args.host, args.port, say=console.print, schedule=schedule)
     return 0
 
 
@@ -146,6 +152,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="address to listen on (default 0.0.0.0 = your whole network; 127.0.0.1 = this PC only)")
     w.add_argument("--port", type=int, default=8000, help="port (default 8000)")
     w.add_argument("--db", default=DEFAULT_DB, help=f"SQLite file to read and record runs in (default: {DEFAULT_DB})")
+    w.add_argument("--schedule", help="also run every profile daily at these local times, e.g. 06:00,12:00,18:00 "
+                                      "(default: $WATCHER_SCHEDULE, else never)")
     w.set_defaults(func=cmd_web)
 
     i = sub.add_parser("investigate", help="probe URLs for bot walls, embedded data and APIs")

@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!-- Unraid Docker template. unraid/install.sh copies it to the flash drive as
+     templates-user/my-website-watcher.xml so the container can be edited from the Docker tab.
+     The image is built locally on the server, so Unraid will show "update: not available". -->
+<Container version="2">
+  <Name>website-watcher</Name>
+  <Repository>website-watcher:latest</Repository>
+  <Registry/>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Overview>Searches car sites for listings matching the profiles in the repo, records them in SQLite and serves a web UI. Deployed from the PC with deploy.ps1.</Overview>
+  <Category>Tools:</Category>
+  <WebUI>http://[IP]:[PORT:8000]/</WebUI>
+  <Icon/>
+  <ExtraParams>--user 99:100</ExtraParams>
+  <Config Name="Web UI port" Target="8000" Default="8000" Mode="tcp" Type="Port" Display="always" Required="true" Mask="false">8000</Config>
+  <Config Name="Data" Target="/app/data" Default="/mnt/user/appdata/website-watcher/data" Mode="rw" Description="watcher.db lives here" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/website-watcher/data</Config>
+  <Config Name="Secrets (.env)" Target="/app/.env" Default="/mnt/user/appdata/website-watcher/.env" Mode="ro" Description="Messenger keys; uploaded from the PC's .env by deploy.ps1" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/website-watcher/.env</Config>
+  <Config Name="Schedule" Target="WATCHER_SCHEDULE" Default="06:00,12:00,18:00" Mode="" Description="Local times to run every profile; empty = never" Type="Variable" Display="always" Required="false" Mask="false">06:00,12:00,18:00</Config>
+  <Config Name="Timezone" Target="TZ" Default="Australia/Melbourne" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">Australia/Melbourne</Config>
+</Container>

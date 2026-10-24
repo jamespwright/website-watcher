@@ -161,6 +161,36 @@ There is no login: anyone on your network can open it and start runs. Use `--hos
 to keep it to this PC, and `--port` to change the port. Photos come from each source's
 `image()` method and load straight from the sites.
 
+## Unraid
+
+The web interface runs as a Docker container on the Unraid server (`192.168.0.2`), at
+`http://192.168.0.2:8000`. It also runs every profile at 06:00, 12:00 and 18:00 Melbourne time
+(`WATCHER_SCHEDULE`, or `watcher web --schedule` anywhere else), as well as on **Run now** and on
+Messenger messages.
+
+```powershell
+./deploy.ps1          # ship the last commit: build on the server, recreate the container
+./deploy.ps1 -Logs    # follow the container's output
+./deploy.ps1 -CopyDb  # also overwrite the server's database with data/watcher.db
+```
+
+`deploy.ps1` uploads `git archive HEAD` (so commit first; uncommitted changes are left out) and
+your `.env` over SSH (key in `~/.ssh/id_ed25519`, added under Users > root in Unraid), then
+runs `unraid/install.sh` on the server. That builds the image from the `Dockerfile` and recreates
+the container. It also installs `unraid/website-watcher.xml` as a template, so the container
+shows in the Docker tab with a WebUI link and starts with the array. Profiles are baked into
+the image, so a profile change needs a deploy too. On the server:
+
+| path | contents |
+| --- | --- |
+| `/mnt/user/appdata/website-watcher/data` | `watcher.db` |
+| `/mnt/user/appdata/website-watcher/.env` | Messenger keys (copied from the PC on each deploy) |
+| `/mnt/user/appdata/website-watcher/src` | the deployed code |
+
+Only one copy should run `watcher web`: if the PC runs it too, each Messenger message starts two
+runs. The Tesla source needs a Chrome-captured snapshot, which the server doesn't have, so it
+reports Tesla as not checked there.
+
 ## Layout
 
 ```

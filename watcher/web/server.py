@@ -17,7 +17,7 @@ import mimetypes
 import socket
 import threading
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, time as dt_time, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -288,7 +288,31 @@ def _start_listeners(app: App, say: Callable[[str], None]) -> None:
         say(f"Listening on {channel.label}: any message you send refreshes {', '.join(pids)}")
 
 
-def serve(profiles: list[Path], db: Path, host: str, port: int, say=print) -> None:
+def parse_times(spec: str) -> list[dt_time]:
+    """"06:00,12:00,18:00" -> sorted times of day (local time)."""
+    return sorted(dt_time.fromisoformat(t.strip()) for t in spec.split(",") if t.strip())
+
+
+def _next_at(times: list[dt_time], now: datetime) -> datetime:
+    today = [datetime.combine(now.date(), t) for t in times]
+    return next((t for t in today if t > now), today[0] + timedelta(days=1))
+
+
+def _start_schedule(app: App, times: list[dt_time], say: Callable[[str], None]) -> None:
+    """Run every profile at each of `times`, every day."""
+    def loop() -> None:
+        while True:
+            at = _next_at(times, datetime.now())
+            threading.Event().wait((at - datetime.now()).total_seconds())
+            if not app.start_runs(list(app.profiles)):
+                log.warning("scheduled run at %s skipped: a run is already going", at.strftime("%H:%M"))
+
+    threading.Thread(target=loop, daemon=True).start()
+    say("Scheduled runs of every profile at " + ", ".join(t.strftime("%H:%M") for t in times))
+
+
+def serve(profiles: list[Path], db: Path, host: str, port: int, say=print,
+          schedule: list[dt_time] | None = None) -> None:
     app = App(profiles, db)
     server = ThreadingHTTPServer((host, port), _handler(app))
     urls = [f"http://localhost:{port}"]
@@ -296,6 +320,8 @@ def serve(profiles: list[Path], db: Path, host: str, port: int, say=print) -> No
         urls += [f"http://{ip}:{port}" for ip in _lan_addresses()]
     say("Serving " + ", ".join(p.stem for p in profiles) + " on " + "  ".join(urls) + "   (Ctrl+C to stop)")
     _start_listeners(app, say)
+    if schedule:
+        _start_schedule(app, schedule, say)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
