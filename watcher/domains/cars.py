@@ -2,7 +2,8 @@
 
 Normalised fields (sources should fill whatever they can):
     make, model, badge, year, price, odometer, colour, body, drive,
-    state (VIC/NSW/...), location, status (available/reserved/sold), vin, seller
+    state (VIC/NSW/...), location, status (available/reserved/sold), vin, seller,
+    seller_type (dealer/private; leave it out when the site doesn't say)
 """
 from __future__ import annotations
 
@@ -74,6 +75,8 @@ class Cars(Domain):
             fields["state"] = state_code(fields["state"]) or fields["state"]
         if fields.get("status"):
             fields["status"] = _STATUS.get(str(fields["status"]).strip().casefold(), str(fields["status"]).lower())
+        if isinstance(fields.get("seller_type"), str):
+            fields["seller_type"] = fields["seller_type"].strip().lower()
         for f in ("make", "model", "badge", "colour"):
             if isinstance(fields.get(f), str):
                 fields[f] = fields[f].strip()

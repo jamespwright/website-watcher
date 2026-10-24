@@ -119,6 +119,7 @@ class DealerStudioSource(Source):
                 "colour": h.get("colour"), "body": h.get("simple_body"), "drive": h.get("simple_drive"),
                 "state": h.get("state"), "location": h.get("city") or h.get("location_name"),
                 "status": status, "vin": h.get("vin"), "seller": h.get("dealership_name"),
+                "seller_type": "dealer",  # DealerStudio sites are a single dealership's stock
             },
             raw=h,
         )

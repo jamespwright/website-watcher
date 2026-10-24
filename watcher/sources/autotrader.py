@@ -103,6 +103,7 @@ class Autotrader(Source):
                 "drive": vehicle.get("drive_type"), "state": r.get("location_state"),
                 "location": r.get("location_city"), "status": status, "condition": condition or None,
                 "seller": dealer.get("trading_name") or ("Private" if r.get("is_private") else None),
+                "seller_type": "dealer" if r.get("is_dealer") else "private" if r.get("is_private") else None,
             },
             raw=r,
         )

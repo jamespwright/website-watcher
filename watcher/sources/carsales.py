@@ -6,7 +6,8 @@ How it works (investigated Oct 2026):
   * The page is a server-driven-UI Next.js (pages router) app. __NEXT_DATA__ holds `ListingCard`
     objects whose text lives in nested `Text` nodes: `title` (year make model + badge/variant),
     `keyDetails` (body, fuel, odometer next to a `kms-taco` icon), `price` and `sellerTitle`
-    ("Dealer used · VIC", "Private · VIC", or "New car to order").
+    ("Dealer used · VIC", "Private · VIC", or "New car to order"). `action.data.prefetchSellerType`
+    says "dealer" or "private" and becomes `seller_type`.
   * Plain HTTP is challenged intermittently (a ~775 byte captcha page or a 403), so we retry a
     few times with a fresh session. Detail pages are captcha'd far more often and the cards have
     no colour, but the query DSL has a `Colour.<name>.` filter. So colour is recovered by re-running
@@ -163,6 +164,8 @@ class Carsales(Source):
                 "make": make, "model": model, "badge": badge, "year": m["year"], "price": price,
                 "odometer": odo, "fuel": fuel, "body": body, "state": state, "status": status,
                 "seller": seller,
+                # "dealer" / "private"; carsales mixes both
+                "seller_type": data.get("prefetchSellerType"),
             },
             raw=card,
         )

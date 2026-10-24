@@ -111,6 +111,7 @@ class Cars24(Source):
                 "colour": c.get("color") or c.get("colour"), "fuel": c.get("fuelType"),
                 "state": HUB_STATE.get(str(hub).casefold()) if hub else None, "location": hub,
                 "status": c.get("status"), "seller": "Cars24",
+                "seller_type": "dealer",  # Cars24 sells its own stock; partner listings are dealers
             },
             raw=c,
         )

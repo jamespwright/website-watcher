@@ -72,6 +72,7 @@ class Tesla(Source):
                 "price": price, "odometer": v.get("odometer"), "colour": v.get("paint"),
                 "state": v.get("state"), "location": v.get("city"), "vin": v["vin"],
                 "status": "reserved" if v.get("in_transit") else "available", "seller": "Tesla",
+                "seller_type": "dealer",
             },
             raw=v,
         )

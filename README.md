@@ -53,6 +53,14 @@ Rule syntax: `field: value` (equals), `field: [a, b]` (one of), or
 `field: {op: value, weight: n}` with ops `eq ne in not_in lt lte gt gte contains regex exists`.
 String comparisons ignore case.
 
+### Dealer or private
+
+Car listings get a `seller_type` of `dealer` or `private`, so `seller_type: dealer` under
+`required` keeps dealer cars only. Melbourne's Cheapest Cars (and any DealerStudio site),
+Cars24, Tesla and Drive only sell dealer stock, so every listing from them is `dealer`.
+carsales and Autotrader mix both, and each listing's type comes from the site's own flag. A
+listing whose site doesn't say has no `seller_type` and fails the rule.
+
 ## Duplicates
 
 The same item is often listed on several sites. Matches from different sites whose domain's

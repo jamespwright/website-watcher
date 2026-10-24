@@ -95,6 +95,7 @@ class Drive(Source):
                 "body": r.get("body"), "state": region.get("state") or dealer.get("state"),
                 "location": dealer.get("suburb") or region.get("regionName"),
                 "status": STATUS.get(r.get("listType"), r.get("listType")), "seller": dealer.get("name"),
+                "seller_type": "dealer",  # Drive lists dealer stock only
             },
             raw=r,
         )

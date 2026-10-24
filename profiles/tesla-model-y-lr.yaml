@@ -38,12 +38,14 @@ required:
   state: VIC
   status: available
   price: {lte: 55000}
+  # dealer or private; listings whose site doesn't say are dropped too
+  seller_type: dealer
 
 # Nice-to-haves: each one that passes adds its weight (default 1) to the score.
 optional:
   odometer: {lte: 50000, weight: 2}
   year: {gt: 2023}
-  colour: [White]
+  colour: {in: [White], weight: 2}
 
 display: [year, badge, price, odometer, colour, location, status]
 sort: [-score, price]
