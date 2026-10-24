@@ -5,7 +5,8 @@
     POST /api/profiles/<id>/run   start a scrape of that profile in the background
     GET  /api/run                 state of the current / last background run
 
-Profiles are re-read on every request, so edits to the YAML show up on refresh. Filtering
+Any message sent to a profile's notify channel (e.g. Messenger) also starts a run; see
+watcher/core/notify.py. Profiles are re-read on every request, so edits to the YAML show up on refresh. Filtering
 beyond the profile's own rules, sorting and de-duplication happen in the browser.
 """
 from __future__ import annotations
@@ -20,9 +21,10 @@ from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse
 
+from watcher.core.notify import Channel, NotifyError, channels, listen, notify
 from watcher.core.profile import Profile, load_profile
 from watcher.core.runner import Result, run
 from watcher.core.source import sources
@@ -132,20 +134,36 @@ class App:
         }
 
     def start_run(self, pid: str) -> RunState:
-        with self.lock:
-            if self.state.running:
-                return self.state
-            self.state = RunState(running=True, profile=pid, started_at=_now())
-        threading.Thread(target=self._run, args=(pid,), daemon=True).start()
+        self.start_runs([pid])
         return self.state
 
-    def _run(self, pid: str) -> None:
+    def start_runs(self, pids: list[str], then: Callable[[list[RunState]], None] | None = None) -> bool:
+        """Run the profiles one after another in the background; False if a run is already going."""
+        with self.lock:
+            if self.state.running:
+                return False
+            self.state = RunState(running=True, profile=pids[0], started_at=_now())
+        threading.Thread(target=self._runs, args=(pids, then), daemon=True).start()
+        return True
+
+    def _runs(self, pids: list[str], then: Callable[[list[RunState]], None] | None) -> None:
+        done = []
+        for i, pid in enumerate(pids):
+            if i:
+                self.state = RunState(running=True, profile=pid, started_at=_now())
+            self._run(pid, last=i == len(pids) - 1)
+            done.append(self.state)
+        if then:
+            then(done)
+
+    def _run(self, pid: str, last: bool = True) -> None:
         state = self.state
         try:
             report = run(load_profile(self.profiles[pid]))
             store = Store(self.db)
             try:
                 store.save(report)
+                notify(report, store, say=log.warning)
             finally:
                 store.close()
             new = sum(all(c.is_new for c in m.copies()) for m in report.matches)
@@ -157,7 +175,28 @@ class App:
             state.error = f"{type(e).__name__}: {e}"
         finally:
             state.finished_at = _now()
-            state.running = False
+            state.running = not last  # stay "running" between profiles so nothing else starts
+
+    def on_message(self, channel: Channel, pids: list[str]) -> None:
+        """A message arrived on `channel`: refresh the profiles that notify through it."""
+        names = ", ".join(load_profile(self.profiles[p]).name for p in pids)
+
+        def report(states: list[RunState]) -> None:
+            lines = [f"{load_profile(self.profiles[s.profile]).name}: "
+                     + (f"failed - {s.error}" if s.error else s.summary or "done") for s in states]
+            self._reply(channel, "Refresh finished.\n" + "\n".join(lines))
+
+        if self.start_runs(pids, then=report):
+            self._reply(channel, f"Refreshing {names}. New top matches will follow, then a summary.")
+        else:
+            self._reply(channel, "A refresh is already running; new top matches will arrive when it finishes.")
+
+    @staticmethod
+    def _reply(channel: Channel, text: str) -> None:
+        try:
+            channel.send(text)
+        except NotifyError as e:
+            log.warning("%s: reply failed - %s", channel.label, e)
 
 
 def _handler(app: App) -> type[BaseHTTPRequestHandler]:
@@ -230,12 +269,33 @@ def _lan_addresses() -> list[str]:
         return []
 
 
+def _start_listeners(app: App, say: Callable[[str], None]) -> None:
+    """Poll each notify channel that can receive; a message refreshes the profiles using it."""
+    by_channel: dict[str, list[str]] = {}
+    for pid, path in app.profiles.items():
+        try:
+            for name in load_profile(path).notify.get("channels") or []:
+                by_channel.setdefault(name, []).append(pid)
+        except Exception:  # noqa: BLE001 - a broken YAML just doesn't listen
+            continue
+    for name, pids in by_channel.items():
+        channel = channels.get(name)()
+        if not channel.poll_seconds or channel.missing():
+            continue
+        threading.Thread(target=listen, daemon=True, kwargs={
+            "channel": channel, "on_message": lambda _texts, c=channel, p=pids: app.on_message(c, p),
+            "say": log.warning}).start()
+        say(f"Listening on {channel.label}: any message you send refreshes {', '.join(pids)}")
+
+
 def serve(profiles: list[Path], db: Path, host: str, port: int, say=print) -> None:
-    server = ThreadingHTTPServer((host, port), _handler(App(profiles, db)))
+    app = App(profiles, db)
+    server = ThreadingHTTPServer((host, port), _handler(app))
     urls = [f"http://localhost:{port}"]
     if host in ("0.0.0.0", ""):
         urls += [f"http://{ip}:{port}" for ip in _lan_addresses()]
     say("Serving " + ", ".join(p.stem for p in profiles) + " on " + "  ".join(urls) + "   (Ctrl+C to stop)")
+    _start_listeners(app, say)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

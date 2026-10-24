@@ -12,6 +12,7 @@ from rich.table import Table
 from watcher.core import investigate as inv
 from watcher.core.http import Http
 from watcher.core.output import render, to_json
+from watcher.core.notify import ENV_FILE, NotifyError, channels, load_env, notify
 from watcher.core.profile import load_profile
 from watcher.core.runner import run
 from watcher.core.source import sources
@@ -26,6 +27,8 @@ def cmd_run(args: argparse.Namespace, console: Console) -> int:
         store = Store(args.db)
         try:
             store.save(report)
+            out = Console(stderr=True) if args.json else console  # keep --json output clean
+            notify(report, store, say=lambda m: out.print(f"[dim]{m}"))
         finally:
             store.close()
     if args.json:
@@ -82,6 +85,31 @@ def cmd_investigate(args: argparse.Namespace, console: Console) -> int:
     return 0
 
 
+def cmd_notify(args: argparse.Namespace, console: Console) -> int:
+    channel = channels.get(args.channel)()
+    label = channel.label or channel.name
+    missing = channel.missing()
+    if args.action == "ids":
+        missing = [m for m in missing if "TOKEN" in m]
+    if missing:
+        console.print(f"[red]{label} isn't set up: put {', '.join(missing)} in {ENV_FILE} (see .env.example)")
+        return 2
+    try:
+        if args.action == "test":
+            channel.send("Test message from website-watcher. Top matches will arrive here.")
+            console.print(f"[green]Sent a test message with {label}")
+        else:
+            people = channel.people()
+            if not people:
+                console.print("Nobody has messaged the page yet: send it a message from your own account first")
+            for name, pid in people:
+                console.print(f"{name}: {pid}")
+    except NotifyError as e:
+        console.print(f"[red]{label}: {e}")
+        return 1
+    return 0
+
+
 def cmd_sources(args: argparse.Namespace, console: Console) -> int:
     t = Table(title="Registered sources", title_justify="left")
     for col in ("name", "label", "domain", "notes"):
@@ -128,10 +156,17 @@ def main(argv: list[str] | None = None) -> int:
                    help="keys an embedded object must have to count as an item (default: price year)")
     i.set_defaults(func=cmd_investigate)
 
+    n = sub.add_parser("notify", help="check a notification channel's setup (see watcher/notifiers)")
+    n.add_argument("action", choices=["test", "ids"],
+                   help="test: send a test message; ids: list who has messaged the page, with their IDs")
+    n.add_argument("--channel", default="messenger", help="channel to use (default: messenger)")
+    n.set_defaults(func=cmd_notify)
+
     s = sub.add_parser("sources", help="list available sources")
     s.set_defaults(func=cmd_sources)
 
     args = ap.parse_args(argv)
+    load_env()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING)
     return args.func(args, Console())
 

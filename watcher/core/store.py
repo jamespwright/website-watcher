@@ -5,6 +5,7 @@ Tables:
     run_sources    how each source did on that run
     listings       latest fields per (profile, source, id), plus first_seen / last_seen
     price_history  one row whenever a listing's price is first seen or changes
+    notifications  which listings each notify channel has already announced
 
 A stored listing that a source fetched without problems no longer returns has been taken
 down, so its status is set to `sold` (a blocked site says nothing about its stock). It comes
@@ -24,7 +25,7 @@ from .criteria import evaluate
 from .domain import domains
 from .models import Listing
 from .profile import Profile
-from .runner import Report, dedupe, judge, rank
+from .runner import Report, Result, dedupe, judge, rank
 
 DEFAULT_DB = Path(__file__).resolve().parents[2] / "data" / "watcher.db"
 
@@ -64,6 +65,14 @@ CREATE TABLE IF NOT EXISTS price_history (
     seen_at  TEXT NOT NULL,
     price    REAL,
     PRIMARY KEY (profile, source, id, seen_at)
+);
+CREATE TABLE IF NOT EXISTS notifications (
+    profile  TEXT NOT NULL,
+    channel  TEXT NOT NULL,
+    source   TEXT NOT NULL,
+    id       TEXT NOT NULL,
+    sent_at  TEXT NOT NULL,
+    PRIMARY KEY (profile, channel, source, id)
 );
 """
 
@@ -140,6 +149,17 @@ class Store:
             ev = evaluate(fields, profile.required, profile.optional)
             self.db.execute("UPDATE listings SET fields=?, passed=?, score=? WHERE profile=? AND source=? AND id=?",
                             (_dumps(fields), int(ev.passed), ev.score, profile.name, row["source"], row["id"]))
+
+    def notified(self, profile: str, channel: str, results: list[Result]) -> bool:
+        """Whether `channel` has announced any of these listings (copies of one item) before."""
+        return any(self.db.execute(
+            "SELECT 1 FROM notifications WHERE profile=? AND channel=? AND source=? AND id=?",
+            (profile, channel, r.listing.source, r.listing.id)).fetchone() for r in results)
+
+    def mark_notified(self, profile: str, channel: str, results: list[Result]) -> None:
+        with self.db:
+            self.db.executemany("INSERT OR IGNORE INTO notifications VALUES (?, ?, ?, ?, ?)",
+                                [(profile, channel, r.listing.source, r.listing.id, _now()) for r in results])
 
     def price_history(self, profile: str) -> dict[tuple[str, str], list[tuple[str, Any]]]:
         """(source, id) -> [(seen_at, price), ...] oldest first."""

@@ -23,6 +23,7 @@ class Profile:
     aliases: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     display: list[str] | None = None
     sort: list[str] = field(default_factory=lambda: ["-score"])
+    notify: dict[str, Any] = field(default_factory=dict)
 
     def canonicalise(self, fields: dict[str, Any]) -> dict[str, Any]:
         """Map raw values onto canonical ones using `aliases` (first matching regex wins)."""
@@ -53,4 +54,5 @@ def load_profile(path: str | Path) -> Profile:
         aliases=data.get("aliases") or {},
         display=data.get("display"),
         sort=data.get("sort") or ["-score"],
+        notify=data.get("notify") or {},
     )

@@ -32,6 +32,10 @@ python -m venv .venv
 
 # List available sources
 .venv\Scripts\python -m watcher sources
+
+# Check Messenger notifications (see "Notifications")
+.venv\Scripts\python -m watcher notify ids    # who has messaged your page, with their IDs
+.venv\Scripts\python -m watcher notify test   # send a test message
 ```
 
 ## Profiles
@@ -48,6 +52,7 @@ A profile (YAML in `profiles/`) says what to search for, where, and how to judge
 | `required` | rules that must all pass |
 | `optional` | rules that add `weight` (default 1) to the score |
 | `display`, `sort` | table columns and ordering (`-score`, `price`, ...) |
+| `notify` | send a message about top matches (see "Notifications") |
 
 Rule syntax: `field: value` (equals), `field: [a, b]` (one of), or
 `field: {op: value, weight: n}` with ops `eq ne in not_in lt lte gt gte contains regex exists`.
@@ -60,6 +65,45 @@ Car listings get a `seller_type` of `dealer` or `private`, so `seller_type: deal
 Cars24, Tesla, Drive and EV Depot only sell dealer stock, so every listing from them is `dealer`.
 carsales and Autotrader mix both, and each listing's type comes from the site's own flag. A
 listing whose site doesn't say has no `seller_type` and fails the rule.
+
+## Notifications
+
+A profile with a `notify` block sends a message after each run (terminal or the web page's
+**Run now**) about matches that score full marks on every optional rule, or at least
+`min_score` if given:
+
+```yaml
+notify:
+  channels: [messenger]
+  min_score: 5   # optional
+```
+
+Each car is announced once (the `notifications` table records what was sent), with every site
+it is listed on in the same message. If a channel isn't set up yet, the run says so and sends
+nothing, and those matches are sent on the first run after it is.
+
+**Messenger** sends from a Facebook Page to you through Meta's Send API. Copy `.env.example`
+to `.env` (gitignored) and fill in:
+
+1. `MESSENGER_PAGE_TOKEN`: create a Meta app (developers.facebook.com, type Business), add the
+   Messenger product, connect your page and generate a Page access token. A development-mode
+   app can message anyone with a role on the app, which covers messaging yourself.
+2. `MESSENGER_RECIPIENT_ID`: send your page a message from your own Messenger, then run
+   `watcher notify ids` and copy your ID.
+3. `watcher notify test` to check it.
+
+Meta only delivers ordinary page messages within 24 hours of your last message to the page.
+Notifications go out untagged, and if Meta says that window has closed they are retried with
+the `ACCOUNT_UPDATE` tag (`MESSENGER_TAG` changes it; empty turns the retry off). A new app
+can't use tags until Meta approves it in App Review, so until then message the page now and
+then (replying to an alert counts). A refused message isn't recorded, so it is sent again on
+the next run after you do.
+
+**Refresh by message**: while `watcher web` is running it checks the page's conversation every
+30 seconds (`MESSENGER_POLL_SECONDS`; 0 turns it off). Any message you send the page starts a
+run of every profile that notifies through Messenger, which also reopens the 24-hour window.
+It replies when it starts, sends any new top matches, then a summary of each profile's run.
+This polls Meta's API instead of using a webhook, so the PC needs no public address.
 
 ## Duplicates
 
@@ -80,6 +124,7 @@ first seen, marks listings that are new this run, and shows a price as
 | --- | --- |
 | `listings` | latest fields/raw JSON per (profile, source, id), whether it last passed, `first_seen`, `last_seen` |
 | `price_history` | a row each time a listing's price is first seen or changes |
+| `notifications` | which listings each notify channel has already sent |
 | `runs`, `run_sources` | when each run happened and how each source did |
 
 `watcher db` re-judges the stored listings against the profile's *current* rules and
@@ -127,12 +172,14 @@ watcher/
     runner.py      fetch all sources in parallel, normalise, filter, rank
     output.py      rich terminal tables / JSON
     store.py       SQLite history of everything found
+    notify.py      pick top matches after a run and send them to the profile's channels
     http.py        shared requests session + bot-wall detection
     nextjs.py      extract data from Next.js pages (RSC rows, __NEXT_DATA__)
     investigate.py site probe used by `watcher investigate`
   web/           `watcher web`: JSON API (server.py) + a no-build page (static/)
   domains/       one file per item type (cars.py normalises state, status, km...)
   sources/       one file per website (auto-discovered via @register_source)
+  notifiers/     one file per message channel (auto-discovered via @register_channel)
 profiles/        search definitions
 ```
 

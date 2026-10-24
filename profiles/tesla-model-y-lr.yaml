@@ -48,4 +48,9 @@ optional:
   colour: {in: [White], weight: 2}
 
 display: [year, badge, price, odometer, colour, location, status]
-sort: [-score, price]
+sort: [-score, odometer, price]
+
+# Message me about matches with full marks on every optional rule (5/5), once per car.
+# Keys go in .env (see .env.example); add `min_score: 4` to also hear about near misses.
+notify:
+  channels: [messenger]
