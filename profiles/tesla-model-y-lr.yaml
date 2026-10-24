@@ -3,7 +3,7 @@ name: Tesla Model Y Long Range (VIC)
 domain: cars
 
 # Sources to query (see `python -m watcher sources`).
-sources: [melbournescheapestcars, cars24, tesla, carsales, drive, autotrader]
+sources: [melbournescheapestcars, cars24, tesla, carsales, drive, autotrader, evdepot]
 
 # Hints passed to every source so they can narrow the search server-side.
 search:

@@ -39,6 +39,7 @@ const S = {
   layout: "grid",
   cols: "display",
   onlyNew: false,
+  onlyDrops: false,
   hideSold: false,
   filters: {}, // field -> {type: "range", min, max} | {type: "set", values: Set}
   item: null,
@@ -125,6 +126,7 @@ function readUrl() {
   S.layout = u.get("layout") === "table" ? "table" : "grid";
   S.cols = u.get("cols") === "all" ? "all" : "display";
   S.onlyNew = u.get("new") === "1";
+  S.onlyDrops = u.get("drop") === "1";
   S.hideSold = u.get("sold") === "hide";
   S.item = u.get("item");
   S.filters = {};
@@ -146,6 +148,7 @@ function writeUrl(push = false) {
   if (S.layout === "table") u.set("layout", "table");
   if (S.cols === "all") u.set("cols", "all");
   if (S.onlyNew) u.set("new", "1");
+  if (S.onlyDrops) u.set("drop", "1");
   if (S.hideSold) u.set("sold", "hide");
   for (const [f, flt] of Object.entries(S.filters)) {
     if (flt.type === "range") u.set("f." + f, `${flt.min ?? ""}~${flt.max ?? ""}`);
@@ -178,6 +181,8 @@ function passesFilter(r, field, flt) {
   return flt.values.has(v === null || v === undefined || v === "" ? NONE : String(v));
 }
 
+const dropped = (r) => isNum(r.first_price) && isNum(r.fields.price) && r.fields.price < r.first_price;
+
 function haystack(r) {
   return (r._hay ??= [r.title, r.source_label, ...Object.values(r.fields)].join(" ").toLowerCase());
 }
@@ -185,7 +190,6 @@ function haystack(r) {
 function filtered(rows, except = null) {
   const terms = S.q.toLowerCase().split(/\s+/).filter(Boolean);
   return rows.filter((r) => {
-    if (S.onlyNew && !r.new) return false;
     if (S.hideSold && r.fields.status === "sold") return false;
     for (const [f, flt] of Object.entries(S.filters)) if (f !== except && !passesFilter(r, f, flt)) return false;
     return terms.every((t) => haystack(r).includes(t));
@@ -248,7 +252,9 @@ function dedupe(rows) {
 
 function results() {
   // Rank first so each duplicate group is headed by its best listing, as in the terminal.
-  return dedupe(filtered(base()).sort(comparator(sortSpecs())));
+  // "New" and "price drop" are judged per merged car, the same way the summary tiles count them.
+  return dedupe(filtered(base()).sort(comparator(sortSpecs())))
+    .filter((g) => (!S.onlyNew || g.isNew) && (!S.onlyDrops || dropped(g.r)));
 }
 
 /* ---------------- facets ---------------- */
@@ -280,6 +286,7 @@ function renderFacets() {
   const html = [`
     <div class="facet">
       <label class="toggle">Only new on the last run <input type="checkbox" data-toggle="onlyNew" ${S.onlyNew ? "checked" : ""}></label>
+      <label class="toggle">Only price drops <input type="checkbox" data-toggle="onlyDrops" ${S.onlyDrops ? "checked" : ""}></label>
       ${S.view === "all" ? `<label class="toggle">Hide sold <input type="checkbox" data-toggle="hideSold" ${S.hideSold ? "checked" : ""}></label>` : ""}
     </div>`];
   for (const d of defs) {
@@ -325,7 +332,7 @@ function renderFacets() {
 }
 
 function activeCount() {
-  return Object.values(S.filters).filter((f) => (f.type === "range" ? f.min != null || f.max != null : f.values.size)).length + S.onlyNew + S.hideSold;
+  return Object.values(S.filters).filter((f) => (f.type === "range" ? f.min != null || f.max != null : f.values.size)).length + S.onlyNew + S.onlyDrops + S.hideSold;
 }
 
 /* ---------------- render ---------------- */
@@ -387,14 +394,20 @@ function renderStats(groups) {
   const newN = groups.filter((g) => g.isNew).length;
   const priced = groups.filter((g) => isNum(g.r.fields.price)).sort((a, b) => a.r.fields.price - b.r.fields.price);
   const cheapest = priced[0];
-  const drops = groups.filter((g) => isNum(g.r.first_price) && isNum(g.r.fields.price) && g.r.fields.price < g.r.first_price).length;
+  const drops = groups.filter((g) => dropped(g.r)).length;
   const sold = S.data.listings.filter((r) => r.fields.status === "sold").length;
-  const tile = (lbl, value, sub, cls = "") => `<div class="stat"><div class="stat-label">${lbl}</div><div class="stat-value ${cls}">${value}</div><div class="stat-sub">${sub}</div></div>`;
+  const priceFlt = S.filters.price;
+  const onCheapest = !!cheapest && priceFlt?.type === "range" && priceFlt.min == null && priceFlt.max === cheapest.r.fields.price;
+  // Each tile is a button that narrows the list to the cars it counts; pressed again, it undoes that.
+  const tile = (action, pressed, hint, lbl, value, sub, cls = "") => `
+    <button type="button" class="stat" data-tile="${action}" aria-pressed="${pressed}" title="${esc(hint)}">
+      <div class="stat-label">${lbl}</div><div class="stat-value ${cls}">${value}</div><div class="stat-sub">${sub}</div>
+    </button>`;
   $("#stats").innerHTML = [
-    tile(S.view === "matches" ? "Matches" : "Listings", groups.length, merged ? `${merged} duplicate${merged === 1 ? "" : "s"} merged` : "no duplicates"),
-    tile("New", newN, "first seen on the last run", newN ? "good" : ""),
-    tile("Lowest price", cheapest ? money(cheapest.r.fields.price) : "—", cheapest ? esc(cheapest.r.title) : "nothing priced"),
-    tile("Price drops", drops, `${S.data.listings.length} tracked · ${sold} sold`),
+    tile("all", !activeCount() && !S.q, "Show them all (clear filters)", S.view === "matches" ? "Matches" : "Listings", groups.length, merged ? `${merged} duplicate${merged === 1 ? "" : "s"} merged` : "no duplicates"),
+    tile("new", S.onlyNew, S.onlyNew ? "Show all again" : "Show only these", "New", newN, "first seen on the last run", newN ? "good" : ""),
+    tile("cheapest", onCheapest, onCheapest ? "Show all prices again" : "Show only the cheapest", "Lowest price", cheapest ? money(cheapest.r.fields.price) : "—", cheapest ? esc(cheapest.r.title) : "nothing priced"),
+    tile("drops", S.onlyDrops, S.onlyDrops ? "Show all again" : "Show only these", "Price drops", drops, `${S.data.listings.length} tracked · ${sold} sold`),
   ].join("");
 }
 
@@ -411,6 +424,7 @@ function renderToolbar(groups) {
 
   const chips = [`<span class="result-count">${groups.length} result${groups.length === 1 ? "" : "s"}</span>`];
   if (S.onlyNew) chips.push(`<button class="active-chip" data-unset="onlyNew">Only new ${ICON.x}</button>`);
+  if (S.onlyDrops) chips.push(`<button class="active-chip" data-unset="onlyDrops">Price drops ${ICON.x}</button>`);
   if (S.hideSold) chips.push(`<button class="active-chip" data-unset="hideSold">Hiding sold ${ICON.x}</button>`);
   for (const [f, flt] of Object.entries(S.filters)) {
     let text;
@@ -755,9 +769,22 @@ function setFilter(field, flt) {
 
 function resetFilters() {
   S.filters = {};
-  S.onlyNew = S.hideSold = false;
+  S.onlyNew = S.onlyDrops = S.hideSold = false;
   S.q = "";
   render();
+}
+
+function tileClick(action, pressed) {
+  if (action === "all") { resetFilters(); return; }
+  if (action === "new") S.onlyNew = !pressed;
+  if (action === "drops") S.onlyDrops = !pressed;
+  if (action === "cheapest") {
+    const cheapest = current.map((g) => g.r.fields.price).filter(isNum).sort((a, b) => a - b)[0];
+    if (pressed || cheapest === undefined) delete S.filters.price;
+    else S.filters.price = { type: "range", min: null, max: cheapest };
+  }
+  render();
+  $("#list").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function openFilters(open) {
@@ -784,6 +811,7 @@ function bind() {
     if (t.dataset.clear) { setFilter(t.dataset.clear, null); return; }
     if (t.dataset.unset) { S[t.dataset.unset] = false; render(); return; }
     if (t.hasAttribute("data-reset")) { resetFilters(); return; }
+    if (t.dataset.tile) { tileClick(t.dataset.tile, t.getAttribute("aria-pressed") === "true"); return; }
     if (t.dataset.sortby) {
       const f = t.dataset.sortby;
       S.sort = S.sort === f ? "-" + f : S.sort === "-" + f ? "best" : (f === "first_seen" || f === "score" || f === "year" ? "-" + f : f);

@@ -57,7 +57,7 @@ String comparisons ignore case.
 
 Car listings get a `seller_type` of `dealer` or `private`, so `seller_type: dealer` under
 `required` keeps dealer cars only. Melbourne's Cheapest Cars (and any DealerStudio site),
-Cars24, Tesla and Drive only sell dealer stock, so every listing from them is `dealer`.
+Cars24, Tesla, Drive and EV Depot only sell dealer stock, so every listing from them is `dealer`.
 carsales and Autotrader mix both, and each listing's type comes from the site's own flag. A
 listing whose site doesn't say has no `seller_type` and fails the rule.
 
@@ -106,6 +106,8 @@ renaming a profile starts a fresh history.
 - Filters for every field (ranges for numbers, choices for the rest), search, sorting, and a
   card or table layout narrow down either view. They are only a view - the YAML is never
   changed - and they live in the URL, so a filtered view can be bookmarked.
+- The summary tiles are shortcuts: **New**, **Price drops** and **Lowest price** narrow the list
+  to those cars (tap again to undo), and the count tile clears every filter.
 - Click a listing for its price history, every site it is on, how it scores against each
   rule and every stored field.
 - **Run now** does a `watcher run` in the background and refreshes when it finishes.
@@ -156,3 +158,4 @@ columns), then point a new profile's `domain:` at it.
 | carsales | `__NEXT_DATA__` `ListingCard` objects (title, odometer, price, seller/state). Captcha is intermittent, so the request is retried up to 5x with a fresh session. Colour comes from re-running the search once per base colour with carsales' `Colour.<name>.` filter (~12 extra requests; `source_options: carsales: {colours: false}` or a list to limit); only page 1 is read | working |
 | Drive | Path-based search (`/cars-for-sale/search/<state>/all/<make>/<model>/`, `/page/<n>/` for more) with `__NEXT_DATA__` `listings.results` (make, model, badge, colour, odometer, price, dealer, state). Cloudflare 403s python-requests by TLS fingerprint, so the source uses `curl_cffi` impersonating Chrome. Dealer stock only | working |
 | Autotrader | Nuxt 3 site whose `__NUXT_DATA__` comes from a public JSON API (`listings.platform.autotrader.com.au/api/v3/search?make=&model=&state=`, `paginate` <= 50, `last_page` for more), which the source calls directly. Like Drive, python-requests gets 403, so `curl_cffi` is used. Has colour, odometer, variant, dealer and suburb | working |
+| EV Depot | Server-rendered Next.js; `/inventory?q=<make model>&page=<n>` gives the car links (12 per page), and each car's page has a schema.org `Car` JSON-LD block (badge, year, VIN, colour, odometer, price, availability). One dealership in Seaford VIC | working |
