@@ -169,7 +169,8 @@ to keep it to this PC, and `--port` to change the port. Photos come from each so
 The web interface runs as a Docker container on the Unraid server (`192.168.0.2`), at
 `http://192.168.0.2:8000`. It also runs every profile at 06:00, 12:00 and 18:00 Melbourne time
 (`WATCHER_SCHEDULE`, or `watcher web --schedule` anywhere else), as well as on **Run now** and on
-Messenger messages.
+Messenger messages. After each scheduled refresh it messages a short summary (matches, how many
+are new, any site not checked) to every profile's notify channels, after any new top matches.
 
 ```powershell
 ./deploy.ps1          # ship the last commit: build on the server, recreate the container

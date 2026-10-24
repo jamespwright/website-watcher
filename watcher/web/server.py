@@ -6,7 +6,8 @@
     GET  /api/run                 state of the current / last background run
 
 Any message sent to a profile's notify channel (e.g. Messenger) also starts a run; see
-watcher/core/notify.py. Profiles are re-read on every request, so edits to the YAML show up on refresh. Filtering
+watcher/core/notify.py. Scheduled runs (`--schedule`) message a summary to those channels when
+done. Profiles are re-read on every request, so edits to the YAML show up on refresh. Filtering
 beyond the profile's own rules, sorting and de-duplication happen in the browser.
 """
 from __future__ import annotations
@@ -182,14 +183,36 @@ class App:
         names = ", ".join(load_profile(self.profiles[p]).name for p in pids)
 
         def report(states: list[RunState]) -> None:
-            lines = [f"{load_profile(self.profiles[s.profile]).name}: "
-                     + (f"failed - {s.error}" if s.error else s.summary or "done") for s in states]
-            self._reply(channel, "Refresh finished.\n" + "\n".join(lines))
+            self._reply(channel, "Refresh finished.\n" + self.summary(states))
 
         if self.start_runs(pids, then=report):
             self._reply(channel, f"Refreshing {names}. New top matches will follow, then a summary.")
         else:
             self._reply(channel, "A refresh is already running; new top matches will arrive when it finishes.")
+
+    def summary(self, states: list[RunState]) -> str:
+        """One line per finished run: profile name, then its match counts or error."""
+        return "\n".join(f"{load_profile(self.profiles[s.profile]).name}: "
+                         + (f"failed - {s.error}" if s.error else s.summary or "done") for s in states)
+
+    def by_channel(self) -> dict[str, list[str]]:
+        """Notify channel name -> ids of the profiles that notify through it."""
+        out: dict[str, list[str]] = {}
+        for pid, path in self.profiles.items():
+            try:
+                for name in load_profile(path).notify.get("channels") or []:
+                    out.setdefault(name, []).append(pid)
+            except Exception:  # noqa: BLE001 - a broken YAML just doesn't notify
+                continue
+        return out
+
+    def announce(self, heading: str, states: list[RunState]) -> None:
+        """Send `heading` and the summary of the runs to each channel those profiles notify through."""
+        for name, pids in self.by_channel().items():
+            mine = [s for s in states if s.profile in pids]
+            channel = channels.get(name)()
+            if mine and not channel.missing():
+                self._reply(channel, heading + "\n" + self.summary(mine))
 
     @staticmethod
     def _reply(channel: Channel, text: str) -> None:
@@ -271,14 +294,7 @@ def _lan_addresses() -> list[str]:
 
 def _start_listeners(app: App, say: Callable[[str], None]) -> None:
     """Poll each notify channel that can receive; a message refreshes the profiles using it."""
-    by_channel: dict[str, list[str]] = {}
-    for pid, path in app.profiles.items():
-        try:
-            for name in load_profile(path).notify.get("channels") or []:
-                by_channel.setdefault(name, []).append(pid)
-        except Exception:  # noqa: BLE001 - a broken YAML just doesn't listen
-            continue
-    for name, pids in by_channel.items():
+    for name, pids in app.by_channel().items():
         channel = channels.get(name)()
         if not channel.poll_seconds or channel.missing():
             continue
@@ -299,12 +315,13 @@ def _next_at(times: list[dt_time], now: datetime) -> datetime:
 
 
 def _start_schedule(app: App, times: list[dt_time], say: Callable[[str], None]) -> None:
-    """Run every profile at each of `times`, every day."""
+    """Run every profile at each of `times`, every day, then message a summary to their notify channels."""
     def loop() -> None:
         while True:
             at = _next_at(times, datetime.now())
             threading.Event().wait((at - datetime.now()).total_seconds())
-            if not app.start_runs(list(app.profiles)):
+            heading = f"Scheduled refresh ({at:%H:%M}) finished."
+            if not app.start_runs(list(app.profiles), then=lambda states, h=heading: app.announce(h, states)):
                 log.warning("scheduled run at %s skipped: a run is already going", at.strftime("%H:%M"))
 
     threading.Thread(target=loop, daemon=True).start()
