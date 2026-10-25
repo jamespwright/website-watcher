@@ -105,7 +105,8 @@ the next run after you do.
 **Refresh by message**: while `watcher web` is running it checks the page's conversation every
 30 seconds (`MESSENGER_POLL_SECONDS`; 0 turns it off). Any message you send the page starts a
 run of every profile that notifies through Messenger, which also reopens the 24-hour window.
-It replies when it starts, sends any new top matches, then a summary of each profile's run.
+It replies when it starts, sends any new top matches, then a summary of each profile's run: its match counts, then each site's result
+(✅ how many listings were fetched and matched, or ❌ why the fetch failed).
 This polls Meta's API instead of using a webhook, so the PC needs no public address.
 
 ## Duplicates
@@ -169,8 +170,8 @@ to keep it to this PC, and `--port` to change the port. Photos come from each so
 The web interface runs as a Docker container on the Unraid server (`192.168.0.2`), at
 `http://192.168.0.2:8000`. It also runs every profile at 06:00, 12:00 and 18:00 Melbourne time
 (`WATCHER_SCHEDULE`, or `watcher web --schedule` anywhere else), as well as on **Run now** and on
-Messenger messages. After each scheduled refresh it messages a short summary (matches, how many
-are new, any site not checked) to every profile's notify channels, after any new top matches.
+Messenger messages. After each scheduled refresh it messages the same summary (matches, how many
+are new, and each site's fetched count or failure) to every profile's notify channels, after any new top matches.
 
 ```powershell
 ./deploy.ps1          # ship the last commit: build on the server, recreate the container

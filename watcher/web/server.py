@@ -17,7 +17,7 @@ import logging
 import mimetypes
 import socket
 import threading
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, time as dt_time, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -43,10 +43,20 @@ class RunState:
     finished_at: str | None = None
     error: str | None = None
     summary: str | None = None
+    # One per site: label, status (ok | blocked | skipped | unavailable | error), fetched, matched, message.
+    sites: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _site_line(site: dict[str, Any]) -> str:
+    """"✅ Carsales: 42 fetched, 3 matched" or "❌ Drive: blocked - HTTP 403"."""
+    if site["status"] == "ok":
+        return f"✅ {site['label']}: {site['fetched']} fetched, {site['matched']} matched"
+    reason = site["message"] if len(site["message"]) <= 100 else site["message"][:99] + "…"
+    return f"❌ {site['label']}: {site['status']}" + (f" - {reason}" if reason else "")
 
 
 def _rule(c: Any, optional: bool) -> dict[str, Any]:
@@ -168,9 +178,9 @@ class App:
             finally:
                 store.close()
             new = sum(all(c.is_new for c in m.copies()) for m in report.matches)
-            bad = [s.label for s in report.sources if s.status != "ok"]
-            state.summary = f"{len(report.matches)} match(es), {new} new" + (
-                f"; not checked: {', '.join(bad)}" if bad else "")
+            state.summary = f"{len(report.matches)} match(es), {new} new"
+            state.sites = [{"label": s.label, "status": s.status, "fetched": s.fetched,
+                            "matched": s.matched, "message": s.message} for s in report.sources]
         except Exception as e:  # noqa: BLE001 - report it to the page instead of dying silently
             log.exception("web run failed")
             state.error = f"{type(e).__name__}: {e}"
@@ -191,9 +201,13 @@ class App:
             self._reply(channel, "A refresh is already running; new top matches will arrive when it finishes.")
 
     def summary(self, states: list[RunState]) -> str:
-        """One line per finished run: profile name, then its match counts or error."""
-        return "\n".join(f"{load_profile(self.profiles[s.profile]).name}: "
-                         + (f"failed - {s.error}" if s.error else s.summary or "done") for s in states)
+        """Per finished run: profile name and its match counts or error, then a line per site."""
+        lines = []
+        for s in states:
+            lines.append(f"{load_profile(self.profiles[s.profile]).name}: "
+                         + (f"failed - {s.error}" if s.error else s.summary or "done"))
+            lines += ["  " + _site_line(site) for site in s.sites]
+        return "\n".join(lines)
 
     def by_channel(self) -> dict[str, list[str]]:
         """Notify channel name -> ids of the profiles that notify through it."""

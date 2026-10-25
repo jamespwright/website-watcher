@@ -724,7 +724,10 @@ async function pollRun() {
   if (state.running) { setTimeout(pollRun, 2500); return; }
   if (wasRunning) {
     if (state.error) toast(`Run failed: ${state.error}`, true);
-    else toast(`Run finished: ${state.summary}`);
+    else {
+      const bad = (state.sites || []).filter(x => x.status !== "ok").map(x => x.label);
+      toast(`Run finished: ${state.summary}` + (bad.length ? `; not checked: ${bad.join(", ")}` : ""));
+    }
     if (state.profile === S.pid) await loadProfile(S.pid);
   }
 }
