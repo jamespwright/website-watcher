@@ -55,7 +55,7 @@ class Drive(Source):
             pages = (listings.get("pageInfo") or {}).get("pageCount") or 1
             page += 1
         if pages > MAX_PAGES:
-            ctx.warn(f"only the first {MAX_PAGES} of {pages} pages read")
+            ctx.incomplete(f"only the first {MAX_PAGES} of {pages} pages read")
         unique = {r["id"]: r for r in results}
         return [self._to_listing(r) for r in unique.values()]
 

@@ -62,7 +62,7 @@ class EvDepot(Source):
                 break
             slugs += new
         else:
-            ctx.warn(f"stopped after {MAX_PAGES} pages")
+            ctx.incomplete(f"stopped after {MAX_PAGES} pages")
         with ThreadPoolExecutor(max_workers=6) as pool:
             cars = list(pool.map(lambda s: self._details(ctx.http, s), slugs))
         listings = [self._to_listing(slug, car) for slug, car in zip(slugs, cars) if car]
@@ -70,7 +70,7 @@ class EvDepot(Source):
             raise SourceBlocked("evdepot car pages had no Car JSON-LD (layout change?)")
         for slug, car in zip(slugs, cars):
             if not car:
-                ctx.warn(f"no Car data on /inventory/{slug}")
+                ctx.incomplete(f"no Car data on /inventory/{slug}")
         return listings
 
     @staticmethod

@@ -137,8 +137,10 @@ aliases, so you can tighten or loosen a filter without scraping again.
 When a run fetches a source successfully and a stored listing is no longer there, the listing
 is assumed **sold**: its `status` is set to `sold` in the database, so a `status: available`
 rule hides it from both `run` and `db` (it still appears under `-v`). A blocked or failing
-source never marks its listings sold, and a relisted car gets its real status back on the next
-run. History is keyed by the profile's `name`, so
+source never marks its listings sold, and nor does one that warns it may have missed listings
+(more pages than were read, a car page that failed, the Tesla snapshot fallback) or that
+returned nothing. Those warnings show in the run summary, on the web page's site pills and in
+scheduled Messenger summaries. A relisted car gets its real status back on the next run. History is keyed by the profile's `name`, so
 renaming a profile starts a fresh history.
 
 ## Web interface

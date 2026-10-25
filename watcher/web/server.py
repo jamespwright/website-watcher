@@ -43,7 +43,8 @@ class RunState:
     finished_at: str | None = None
     error: str | None = None
     summary: str | None = None
-    # One per site: label, status (ok | blocked | skipped | unavailable | error), fetched, matched, message.
+    # One per site: label, status (ok | blocked | skipped | unavailable | error), fetched, matched, message,
+    # warnings, complete.
     sites: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -51,11 +52,21 @@ def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def _clip(text: str, size: int = 100) -> str:
+    return text if len(text) <= size else text[:size - 1] + "…"
+
+
 def _site_line(site: dict[str, Any]) -> str:
-    """"✅ Carsales: 42 fetched, 3 matched" or "❌ Drive: blocked - HTTP 403"."""
+    """"✅ Carsales: 42 fetched, 3 matched", "⚠️ Cars24: 20 fetched, 1 matched - only first page read"
+    or "❌ Drive: blocked - HTTP 403"."""
     if site["status"] == "ok":
-        return f"✅ {site['label']}: {site['fetched']} fetched, {site['matched']} matched"
-    reason = site["message"] if len(site["message"]) <= 100 else site["message"][:99] + "…"
+        line = f"{site['label']}: {site['fetched']} fetched, {site['matched']} matched"
+        warnings = site.get("warnings") or []
+        if not warnings:
+            return "✅ " + line
+        more = f" (+{len(warnings) - 1} more)" if len(warnings) > 1 else ""
+        return f"⚠️ {line} - {_clip(warnings[0])}{more}"
+    reason = _clip(site["message"])
     return f"❌ {site['label']}: {site['status']}" + (f" - {reason}" if reason else "")
 
 
@@ -180,7 +191,8 @@ class App:
             new = sum(all(c.is_new for c in m.copies()) for m in report.matches)
             state.summary = f"{len(report.matches)} match(es), {new} new"
             state.sites = [{"label": s.label, "status": s.status, "fetched": s.fetched,
-                            "matched": s.matched, "message": s.message} for s in report.sources]
+                            "matched": s.matched, "message": s.message, "warnings": s.warnings,
+                            "complete": s.complete} for s in report.sources]
         except Exception as e:  # noqa: BLE001 - report it to the page instead of dying silently
             log.exception("web run failed")
             state.error = f"{type(e).__name__}: {e}"

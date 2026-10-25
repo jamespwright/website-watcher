@@ -23,6 +23,8 @@ class SourceResult:
     matched: int = 0
     warnings: list[str] = field(default_factory=list)
     urls: list[str] = field(default_factory=list)
+    # False when the source may have missed listings (see FetchContext.incomplete).
+    complete: bool = True
 
 
 @dataclass
@@ -66,6 +68,7 @@ def _fetch_one(source: Source, profile: Profile, http: Http) -> tuple[SourceResu
         res.status, res.message = "error", f"{type(e).__name__}: {e}"
     res.fetched = len(listings)
     res.warnings = ctx.warnings
+    res.complete = ctx.complete
     return res, listings
 
 

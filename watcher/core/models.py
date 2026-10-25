@@ -48,7 +48,15 @@ class FetchContext:
     http: Any
     warnings: list[str] = field(default_factory=list)
     log: logging.Logger = field(default_factory=lambda: logging.getLogger("watcher"))
+    #: False once the source has said it may have missed some of the site's listings.
+    complete: bool = True
 
     def warn(self, message: str) -> None:
         self.warnings.append(message)
         self.log.debug(message)
+
+    def incomplete(self, message: str) -> None:
+        """Warn that some listings may be missing (more pages, a failed page, stale data...), so
+        the ones not returned this run aren't taken as sold."""
+        self.complete = False
+        self.warn(message)

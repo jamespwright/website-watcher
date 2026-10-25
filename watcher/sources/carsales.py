@@ -90,7 +90,7 @@ class Carsales(Source):
         listings = [l for c in cards.values() if (l := self._to_listing(c))]
         self._add_colours(listings, search, ctx)
         if len(cards) >= 30:
-            ctx.warn(f"{len(cards)} cards on page 1 - results beyond the first page are not read")
+            ctx.incomplete(f"{len(cards)} cards on page 1 - results beyond the first page are not read")
         return listings
 
     def _add_colours(self, listings: list[Listing], search: dict[str, Any], ctx: FetchContext) -> None:

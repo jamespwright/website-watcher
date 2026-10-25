@@ -8,8 +8,10 @@ Tables:
     notifications  which listings each notify channel has already announced
 
 A stored listing that a source fetched without problems no longer returns has been taken
-down, so its status is set to `sold` (a blocked site says nothing about its stock). It comes
-back with its real status if it is relisted.
+down, so its status is set to `sold`. A blocked site says nothing about its stock, and neither
+does one that may have missed listings (more pages than were read, a car page that failed, the
+Tesla snapshot) or that returned nothing at all, so those are left alone. A listing comes back
+with its real status if it is relisted.
 
 Listings are keyed by profile name, so editing a profile's `name` starts a fresh history.
 """
@@ -42,6 +44,8 @@ CREATE TABLE IF NOT EXISTS run_sources (
     message  TEXT,
     fetched  INTEGER,
     matched  INTEGER,
+    warnings TEXT,     -- JSON list
+    complete INTEGER,  -- 0 if the source may have missed listings
     PRIMARY KEY (run_id, source)
 );
 CREATE TABLE IF NOT EXISTS listings (
@@ -92,6 +96,15 @@ class Store:
         self.db = sqlite3.connect(self.path)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add columns that databases made by older versions lack."""
+        have = {row["name"] for row in self.db.execute("PRAGMA table_info(run_sources)")}
+        with self.db:
+            for col, kind in (("warnings", "TEXT"), ("complete", "INTEGER")):
+                if col not in have:
+                    self.db.execute(f"ALTER TABLE run_sources ADD COLUMN {col} {kind}")
 
     def close(self) -> None:
         self.db.close()
@@ -109,8 +122,10 @@ class Store:
             run_id = self.db.execute("INSERT INTO runs (profile, started_at) VALUES (?, ?)",
                                      (profile, now)).lastrowid
             self.db.executemany(
-                "INSERT INTO run_sources VALUES (?, ?, ?, ?, ?, ?)",
-                [(run_id, s.name, s.status, s.message, s.fetched, s.matched) for s in report.sources])
+                """INSERT INTO run_sources (run_id, source, status, message, fetched, matched, warnings, complete)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                [(run_id, s.name, s.status, s.message, s.fetched, s.matched, _dumps(s.warnings), int(s.complete))
+                 for s in report.sources])
             for r in [c for m in report.matches for c in m.copies()] + report.rejected:
                 lst, ev = r.listing, r.evaluation
                 key = (profile, lst.source, lst.id)
@@ -131,10 +146,11 @@ class Store:
                 r.last_seen = now
                 r.is_new = old is None
                 r.first_price = self._first_price(*key)
-            self._mark_sold(report.profile, [s.name for s in report.sources if s.status == "ok"], now)
+            whole = [s.name for s in report.sources if s.status == "ok" and s.complete and s.fetched]
+            self._mark_sold(report.profile, whole, now)
 
     def _mark_sold(self, profile: Profile, ok_sources: list[str], now: str) -> None:
-        """Listings an `ok` source didn't return this run have been taken down: assume sold."""
+        """Listings these sources (which returned everything) didn't return have been taken down: assume sold."""
         if not ok_sources:
             return
         rows = self.db.execute(
@@ -174,7 +190,13 @@ class Store:
         if not run:
             return None
         srcs = self.db.execute("SELECT * FROM run_sources WHERE run_id=? ORDER BY source", (run["id"],)).fetchall()
-        return {"started_at": run["started_at"], "sources": [dict(s) for s in srcs]}
+        sources = []
+        for s in srcs:
+            s = dict(s)
+            s["warnings"] = json.loads(s["warnings"] or "[]")
+            s["complete"] = s["complete"] != 0  # NULL (older runs) counts as complete
+            sources.append(s)
+        return {"started_at": run["started_at"], "sources": sources}
 
     def report(self, profile: Profile) -> Report:
         """Re-judge every stored listing for this profile against its current rules."""

@@ -99,7 +99,7 @@ class DealerStudioSource(Source):
             return []
         c = max(containers, key=lambda d: len(d["hits"]))
         if c.get("count", 0) > len(c["hits"]):
-            ctx.warn(f"page shows {len(c['hits'])} of {c['count']} results")
+            ctx.incomplete(f"page shows {len(c['hits'])} of {c['count']} results")
         return c["hits"]
 
     def image(self, raw: dict[str, Any]) -> str | None:

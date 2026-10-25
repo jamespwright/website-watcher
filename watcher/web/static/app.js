@@ -363,9 +363,12 @@ function renderHeader() {
     ? `Last run ${ago(last.started_at)} · ${last.sources.length} sites · ${total} listings tracked`
     : "No runs recorded yet";
   $("#sources").innerHTML = (last?.sources || []).map((s) => {
-    const cls = s.status === "ok" ? "ok" : s.status === "blocked" || s.status === "error" ? "bad" : "warn";
+    const warnings = s.warnings || [];
+    const cls = s.status === "blocked" || s.status === "error" ? "bad" : s.status !== "ok" || warnings.length ? "warn" : "ok";
     const tail = s.status === "ok" ? `<b class="num">${s.fetched}</b>` : `<b>${esc(s.status)}</b>`;
-    const title = s.status === "ok" ? `${s.fetched} fetched, ${s.matched} matched` : s.message || s.status;
+    const title = s.status === "ok"
+      ? [`${s.fetched} fetched, ${s.matched} matched`, ...warnings].join("\n")
+      : s.message || s.status;
     return `<span class="source-pill" title="${esc(title)}"><span class="dot ${cls}"></span>${esc(s.label)} ${tail}</span>`;
   }).join("");
 

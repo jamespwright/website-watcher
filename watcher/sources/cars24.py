@@ -4,7 +4,8 @@ How it works (investigated Oct 2026):
   * Make/model pages like /buy-used-tesla-model-y/ are Next.js (app router). The full result
     set (20 per page) is embedded in the RSC payload as objects with `appointmentId` +
     `listingPrice`, plus a page object {"hasMore", "totalElements", ...}.
-  * The page also embeds unrelated "recommended" cars - criteria on make/model filter them.
+  * The page also embeds unrelated "recommended" cars; those not matching the searched
+    make/model are dropped.
   * The underlying JSON API (POST https://listing-service-au.c24.tech/listing/v2/buy-used-car)
     returns 401 without browser session headers, so we read the page instead.
   * Listings show a pickup hub (Melbourne/Sydney/Brisbane) rather than a state; we map it.
@@ -63,11 +64,12 @@ class Cars24(Source):
         cars = nextjs.find_objects(html, lambda d: "appointmentId" in d and "listingPrice" in d)
         pages = nextjs.find_objects(html, lambda d: "hasMore" in d and "totalElements" in d)
         if pages and pages[0].get("hasMore"):
-            ctx.warn(f"only first page read ({pages[0].get('size')} of {pages[0].get('totalElements')})")
+            ctx.incomplete(f"only first page read ({pages[0].get('size')} of {pages[0].get('totalElements')})")
         unique = {c["appointmentId"]: c for c in cars}
-        listings = [self._to_listing(c) for c in unique.values()]
+        # Drop the unrelated "recommended" cars the page also embeds.
+        listings = [l for c in unique.values() if self._matches_search(l := self._to_listing(c), search)]
         if self.options.get("details", True):
-            self._add_details([l for l in listings if self._matches_search(l, search)], ctx)
+            self._add_details(listings, ctx)
         return listings
 
     @staticmethod

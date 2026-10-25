@@ -80,7 +80,7 @@ class Tesla(Source):
             path = Path(self.options.get("snapshot", DEFAULT_SNAPSHOT))
             if not path.exists():
                 raise
-            ctx.warn(f"live fetch failed ({e}); using {path.name}")
+            ctx.incomplete(f"live fetch failed ({e}); using {path.name}")
             vehicles, code = self._read_snapshot(path, ctx)
 
         reg_state = self.options.get("RegistrationProvince") or search.get("state")
@@ -133,7 +133,7 @@ class Tesla(Source):
                 total = int(data.get("total_matches_found") or 0)
                 if len(results) >= total or len(batch) < PAGE_SIZE:
                     return results
-            ctx.warn(f"only the first {MAX_PAGES} pages read")
+            ctx.incomplete(f"only the first {MAX_PAGES} pages read")
             return results
         finally:
             browser.stop()
@@ -187,7 +187,8 @@ class Tesla(Source):
                 "make": "Tesla", "model": model, "badge": v.get("trim"), "year": v.get("year"),
                 "price": price, "odometer": v.get("odometer"), "colour": v.get("paint"),
                 "state": v.get("state"), "location": v.get("city"), "vin": v["vin"],
-                "status": "reserved" if v.get("in_transit") else "available", "seller": "Tesla",
+                # In transit means being moved between Tesla locations, not sold or held for a buyer.
+                "status": "available", "in_transit": bool(v.get("in_transit")), "seller": "Tesla",
                 "seller_type": "dealer",
             },
             raw=v,
