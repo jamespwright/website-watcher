@@ -52,6 +52,15 @@ def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+# On the page a listing counts as "new" for this long after it was first found. The terminal and
+# messenger summaries still count a listing as new only on the run that first found it.
+NEW_WINDOW = timedelta(hours=24)
+
+
+def _recent(first_seen: str | None) -> bool:
+    return bool(first_seen) and datetime.fromisoformat(first_seen) >= datetime.now().astimezone() - NEW_WINDOW
+
+
 def _clip(text: str, size: int = 100) -> str:
     return text if len(text) <= size else text[:size - 1] + "…"
 
@@ -122,10 +131,10 @@ class App:
             "display": p.display or report.domain.display,
             "sort": p.sort,
             "last_run": last,
-            "listings": [self._listing(r, labels, history, last) for r in results],
+            "listings": [self._listing(r, labels, history) for r in results],
         }
 
-    def _listing(self, r: Result, labels: dict[str, str], history: dict, last: dict | None) -> dict[str, Any]:
+    def _listing(self, r: Result, labels: dict[str, str], history: dict) -> dict[str, Any]:
         lst, ev = r.listing, r.evaluation
         image = None
         try:
@@ -151,8 +160,7 @@ class App:
             "last_seen": r.last_seen,
             "first_price": r.first_price,
             "prices": history.get((lst.source, lst.id), []),
-            # Same meaning as the terminal's "new": first found on the latest run.
-            "new": bool(last and r.first_seen and r.first_seen >= last["started_at"]),
+            "new": _recent(r.first_seen),
         }
 
     def start_run(self, pid: str) -> RunState:

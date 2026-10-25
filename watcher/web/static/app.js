@@ -181,7 +181,16 @@ function passesFilter(r, field, flt) {
   return flt.values.has(v === null || v === undefined || v === "" ? NONE : String(v));
 }
 
-const dropped = (r) => isNum(r.first_price) && isNum(r.fields.price) && r.fields.price < r.first_price;
+// A price drop is a current price below what it was 24 hours ago (or when first found, if that was later).
+const DAY_MS = 24 * 60 * 60 * 1000;
+function dropped(r) {
+  if (!isNum(r.fields.price)) return false;
+  const pts = (r.prices || []).filter(([, p]) => isNum(p)).map(([t, p]) => ({ t: new Date(t).getTime(), p }));
+  if (!pts.length) return false;
+  const cutoff = Date.now() - DAY_MS;
+  const before = pts.filter((d) => d.t <= cutoff).pop() || pts[0];
+  return r.fields.price < before.p;
+}
 
 function haystack(r) {
   return (r._hay ??= [r.title, r.source_label, ...Object.values(r.fields)].join(" ").toLowerCase());
@@ -285,8 +294,8 @@ function renderFacets() {
   const defs = facetDefs(rows);
   const html = [`
     <div class="facet">
-      <label class="toggle">Only new on the last run <input type="checkbox" data-toggle="onlyNew" ${S.onlyNew ? "checked" : ""}></label>
-      <label class="toggle">Only price drops <input type="checkbox" data-toggle="onlyDrops" ${S.onlyDrops ? "checked" : ""}></label>
+      <label class="toggle">Only new in the last 24 hours <input type="checkbox" data-toggle="onlyNew" ${S.onlyNew ? "checked" : ""}></label>
+      <label class="toggle">Only price drops (24 hours) <input type="checkbox" data-toggle="onlyDrops" ${S.onlyDrops ? "checked" : ""}></label>
       ${S.view === "all" ? `<label class="toggle">Hide sold <input type="checkbox" data-toggle="hideSold" ${S.hideSold ? "checked" : ""}></label>` : ""}
     </div>`];
   for (const d of defs) {
@@ -408,9 +417,9 @@ function renderStats(groups) {
     </button>`;
   $("#stats").innerHTML = [
     tile("all", !activeCount() && !S.q, "Show them all (clear filters)", S.view === "matches" ? "Matches" : "Listings", groups.length, merged ? `${merged} duplicate${merged === 1 ? "" : "s"} merged` : "no duplicates"),
-    tile("new", S.onlyNew, S.onlyNew ? "Show all again" : "Show only these", "New", newN, "first seen on the last run", newN ? "good" : ""),
+    tile("new", S.onlyNew, S.onlyNew ? "Show all again" : "Show only these", "New", newN, "found in the last 24 hours", newN ? "good" : ""),
     tile("cheapest", onCheapest, onCheapest ? "Show all prices again" : "Show only the cheapest", "Lowest price", cheapest ? money(cheapest.r.fields.price) : "—", cheapest ? esc(cheapest.r.title) : "nothing priced"),
-    tile("drops", S.onlyDrops, S.onlyDrops ? "Show all again" : "Show only these", "Price drops", drops, `${S.data.listings.length} tracked · ${sold} sold`),
+    tile("drops", S.onlyDrops, S.onlyDrops ? "Show all again" : "Show only these", "Price drops", drops, `last 24 hours · ${S.data.listings.length} tracked · ${sold} sold`),
   ].join("");
 }
 
