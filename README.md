@@ -11,6 +11,9 @@ python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 ```
 
+The Tesla source also needs Google Chrome installed (it drives a real Chrome window for a few
+seconds; see the Tesla row under "Sites"). The Docker image includes it.
+
 ## Usage
 
 ```powershell
@@ -188,8 +191,8 @@ the image, so a profile change needs a deploy too. On the server:
 | `/mnt/user/appdata/website-watcher/src` | the deployed code |
 
 Only one copy should run `watcher web`: if the PC runs it too, each Messenger message starts two
-runs. The Tesla source needs a Chrome-captured snapshot, which the server doesn't have, so it
-reports Tesla as not checked there.
+runs. The image includes Google Chrome and Xvfb (a virtual screen) for the Tesla source, and the
+container runs with `--init` so Chrome's processes are cleaned up after each fetch.
 
 ## Layout
 
@@ -231,7 +234,7 @@ columns), then point a new profile's `domain:` at it.
 | --- | --- | --- |
 | Melbourne's Cheapest Cars | DealerStudio platform. Public Meilisearch API (`search4.dealerstudio.com.au/multi-search`, scoped tenant token read from site JS); falls back to the Next.js RSC page data | working |
 | Cars24 | Next.js RSC page data on `/buy-used-<make>-<model>/`. The JSON API (`listing-service-au.c24.tech`) returns 401 without browser session auth | working |
-| Tesla | Page and `inventory/api/v4/inventory-results` return Akamai 403 to scripts, but the page's own same-origin `fetch` works in real Chrome. Data is captured with Claude-in-Chrome (`watcher/browser/tesla_capture.js` run on a tesla.com tab) into `data/tesla-snapshot.json`, which the source reads and flags when stale (`max_age_hours`, default 24). Prices are per registration state; the API rejects a `RegistrationProvince` option | working (needs a snapshot refresh) |
+| Tesla | Page and `inventory/api/v4/inventory-results` return Akamai 403/429 to scripts (requests, and curl_cffi with any impersonation, even with a passing browser's cookies), and headless Chrome is denied too. A normal Chrome passes, so the source starts one with `nodriver` (on Xvfb when there's no display, e.g. in Docker), opens the inventory page and calls the API from inside it (~10 s). If that fails it falls back to `data/tesla-snapshot.json` (captured by hand with `watcher/browser/tesla_capture.js`) and flags it when stale (`max_age_hours`, default 24). Prices are per registration state; the API rejects a `RegistrationProvince` option | working |
 | carsales | `__NEXT_DATA__` `ListingCard` objects (title, odometer, price, seller/state). Captcha is intermittent, so the request is retried up to 5x with a fresh session. Colour comes from re-running the search once per base colour with carsales' `Colour.<name>.` filter (~12 extra requests; `source_options: carsales: {colours: false}` or a list to limit); only page 1 is read | working |
 | Drive | Path-based search (`/cars-for-sale/search/<state>/all/<make>/<model>/`, `/page/<n>/` for more) with `__NEXT_DATA__` `listings.results` (make, model, badge, colour, odometer, price, dealer, state). Cloudflare 403s python-requests by TLS fingerprint, so the source uses `curl_cffi` impersonating Chrome. Dealer stock only | working |
 | Autotrader | Nuxt 3 site whose `__NUXT_DATA__` comes from a public JSON API (`listings.platform.autotrader.com.au/api/v3/search?make=&model=&state=`, `paginate` <= 50, `last_page` for more), which the source calls directly. Like Drive, python-requests gets 403, so `curl_cffi` is used. Has colour, odometer, variant, dealer and suburb | working |

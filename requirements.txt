@@ -2,3 +2,4 @@ requests>=2.32
 PyYAML>=6.0
 rich>=13.0
 curl_cffi>=0.7
+nodriver>=0.47

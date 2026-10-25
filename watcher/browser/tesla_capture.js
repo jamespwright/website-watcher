@@ -1,3 +1,4 @@
+// Manual fallback for watcher/sources/tesla.py, which normally fetches live through Chrome itself.
 // Run in the page context of any https://www.tesla.com/en_AU/... tab (Claude-in-Chrome's
 // javascript_tool does this). Returns the JSON to save as data/tesla-snapshot.json.
 // Tesla's Akamai wall blocks scripts but not the page's own same-origin fetch in a real browser.

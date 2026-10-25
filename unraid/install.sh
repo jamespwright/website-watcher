@@ -22,6 +22,7 @@ echo "== Recreating container"
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" \
   --restart unless-stopped \
+  --init \
   --user 99:100 \
   -p "$PORT:8000" \
   -v "$APPDATA/data:/app/data" \
