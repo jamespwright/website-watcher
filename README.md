@@ -70,7 +70,7 @@ Watcher can message you on Facebook Messenger from a Facebook Page:
 
 - **New top matches.** When a car scores full marks on your nice-to-haves, you get a message
   with the car's details and a link to every site it's on. Each car is announced only once.
-- **Summaries.** After each scheduled check (6am, noon and 6pm Melbourne time) you get a
+- **Summaries.** After each scheduled check (6am, 9am, noon, 3pm and 6pm Melbourne time) you get a
   short summary: how many matches there are, how many are new, and how each site went.
 - **Check now by message.** Send the page any message and Watcher checks every site straight
   away. It replies when it starts and sends the results when it's finished.

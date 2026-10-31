@@ -7,7 +7,7 @@ NAME=website-watcher
 APPDATA=/mnt/user/appdata/$NAME
 SRC=$APPDATA/src
 PORT=${PORT:-8000}
-SCHEDULE=${WATCHER_SCHEDULE:-06:00,12:00,18:00}
+SCHEDULE=${WATCHER_SCHEDULE:-06:00,09:00,12:00,15:00,18:00}
 TEMPLATES=/boot/config/plugins/dockerMan/templates-user
 AUTOSTART=/var/lib/docker/unraid-autostart
 

@@ -17,6 +17,6 @@
   <Config Name="Web UI port" Target="8000" Default="8000" Mode="tcp" Type="Port" Display="always" Required="true" Mask="false">8000</Config>
   <Config Name="Data" Target="/app/data" Default="/mnt/user/appdata/website-watcher/data" Mode="rw" Description="watcher.db lives here" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/website-watcher/data</Config>
   <Config Name="Secrets (.env)" Target="/app/.env" Default="/mnt/user/appdata/website-watcher/.env" Mode="ro" Description="Messenger keys; uploaded from the PC's .env by deploy.ps1" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/website-watcher/.env</Config>
-  <Config Name="Schedule" Target="WATCHER_SCHEDULE" Default="06:00,12:00,18:00" Mode="" Description="Local times to run every profile; empty = never" Type="Variable" Display="always" Required="false" Mask="false">06:00,12:00,18:00</Config>
+  <Config Name="Schedule" Target="WATCHER_SCHEDULE" Default="06:00,09:00,12:00,15:00,18:00" Mode="" Description="Local times to run every profile; empty = never" Type="Variable" Display="always" Required="false" Mask="false">06:00,09:00,12:00,15:00,18:00</Config>
   <Config Name="Timezone" Target="TZ" Default="Australia/Melbourne" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">Australia/Melbourne</Config>
 </Container>

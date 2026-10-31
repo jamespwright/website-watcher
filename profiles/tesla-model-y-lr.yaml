@@ -40,12 +40,14 @@ required:
   price: {lte: 55000}
   # dealer or private; listings whose site doesn't say are dropped too
   seller_type: dealer
+  colour: White
+  year: {gt: 2022}
+  odometer: {lte: 60000, weight: 2}
 
 # Nice-to-haves: each one that passes adds its weight (default 1) to the score.
 optional:
-  odometer: {lte: 50000, weight: 2}
-  year: {gt: 2023}
-  colour: {in: [White], weight: 2}
+  
+  
 
 display: [year, badge, price, odometer, colour, location, status]
 sort: [-score, odometer, price]
