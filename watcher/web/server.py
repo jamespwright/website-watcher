@@ -109,6 +109,7 @@ class App:
             report = store.report(p)
             history = store.price_history(p.name)
             last = store.last_run(p.name)
+            favourites = store.favourites(p.name)
         finally:
             store.close()
         labels = {name: cls.label or name for name, cls in sources.all().items()}
@@ -131,10 +132,10 @@ class App:
             "display": p.display or report.domain.display,
             "sort": p.sort,
             "last_run": last,
-            "listings": [self._listing(r, labels, history) for r in results],
+            "listings": [self._listing(r, labels, history, favourites) for r in results],
         }
 
-    def _listing(self, r: Result, labels: dict[str, str], history: dict) -> dict[str, Any]:
+    def _listing(self, r: Result, labels: dict[str, str], history: dict, favourites: set) -> dict[str, Any]:
         lst, ev = r.listing, r.evaluation
         image = None
         try:
@@ -161,7 +162,15 @@ class App:
             "first_price": r.first_price,
             "prices": history.get((lst.source, lst.id), []),
             "new": _recent(r.first_seen),
+            "favourite": (lst.source, lst.id) in favourites,
         }
+
+    def set_favourite(self, pid: str, keys: list[tuple[str, str]], on: bool) -> None:
+        store = Store(self.db)
+        try:
+            store.set_favourite(load_profile(self.profiles[pid]).name, keys, on)
+        finally:
+            store.close()
 
     def start_run(self, pid: str) -> RunState:
         self.start_runs([pid])
@@ -311,6 +320,16 @@ def _handler(app: App) -> type[BaseHTTPRequestHandler]:
             if parts[:2] == ["api", "profiles"] and parts[-1] == "run" and len(parts) == 4:
                 if (pid := self._profile_id(parts)) is not None:
                     self._json(asdict(app.start_run(pid)), HTTPStatus.ACCEPTED)
+            elif parts[:2] == ["api", "profiles"] and parts[-1] == "favourite" and len(parts) == 4:
+                if (pid := self._profile_id(parts)) is not None:
+                    try:
+                        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+                        keys = [(str(k["source"]), str(k["id"])) for k in body["keys"]]
+                        app.set_favourite(pid, keys, bool(body["on"]))
+                    except (ValueError, KeyError, TypeError):
+                        self._json({"error": "expected {keys: [{source, id}], on: bool}"}, HTTPStatus.BAD_REQUEST)
+                    else:
+                        self._json({"ok": True})
             else:
                 self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 

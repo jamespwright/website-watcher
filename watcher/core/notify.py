@@ -10,6 +10,9 @@ Each car is announced once: what was sent is recorded in the database's `notific
 so the next run skips it. A channel that isn't set up (no keys yet) sends nothing and records
 nothing, so the matches are still announced once it is.
 
+Favourites (starred on the web page) are different: every change to one is announced, whatever
+its score, as soon as a run sees it; see `notify_favourites`.
+
 Channels that can also receive (`poll_seconds` > 0) let `watcher web` refresh on request:
 any message you send it starts a run of every profile that notifies through that channel.
 
@@ -26,6 +29,7 @@ from typing import Any, Callable
 from .output import fmt
 from .registry import Registry
 from .runner import Report, Result
+from .source import sources
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
@@ -114,9 +118,54 @@ def compose(matches: list[Result], report: Report) -> str:
     return "\n\n".join([head, *(describe(m, report) for m in matches)])
 
 
+def describe_changes(item: dict[str, Any], report: Report) -> str:
+    """A favourite's title, a line per change (old -> new), then its link."""
+    domain = report.domain
+    lines = [f"★ {item['title']} ({sources.get(item['source']).label or item['source']})"]
+    for field, old, new in item["changes"]:
+        if field == "photo":
+            lines.append("📷 Main photo added - photos are up!" if old is None
+                         else "📷 Main photo removed" if new is None else "📷 Main photo changed")
+        elif field in ("title", "url"):
+            lines.append(f"{field.capitalize()} changed")
+        else:
+            lines.append(f"{field.replace('_', ' ').capitalize()}: {fmt(field, old, domain)} → {fmt(field, new, domain)}")
+    lines.append(item["url"] or "")
+    return "\n".join(lines)
+
+
+def notify_favourites(report: Report, store: Any, say: Callable[[str], None] = print) -> None:
+    """Message every change `store.save` found on a favourite. A change stays queued until some
+    channel has sent it, so a channel that isn't set up yet or fails doesn't lose it."""
+    items = store.unsent_changes(report.profile.name)
+    if not items:
+        return
+    text = "\n\n".join([f"{report.profile.name}: {len(items)} favourite(s) changed",
+                         *(describe_changes(i, report) for i in items)])
+    sent = False
+    for name in report.profile.notify["channels"]:
+        channel = channels.get(name)()
+        label = channel.label or channel.name
+        missing = channel.missing()
+        if missing:
+            say(f"{label}: not set up ({', '.join(missing)} missing), {len(items)} favourite change(s) not sent")
+            continue
+        try:
+            channel.send(text)
+        except NotifyError as e:
+            say(f"{label}: sending failed - {e}")
+            continue
+        sent = True
+        say(f"{label}: sent {len(items)} favourite change(s)")
+    if sent:
+        store.mark_changes_sent([n for i in items for n in i["ns"]])
+
+
 def notify(report: Report, store: Any, say: Callable[[str], None] = print) -> None:
-    """Announce matches scoring at least the profile's threshold that haven't been announced.
-    Call after `store.save(report)`."""
+    """Announce changes to favourites, then matches scoring at least the profile's threshold that
+    haven't been announced. Call after `store.save(report)`."""
+    if report.profile.notify.get("channels"):
+        notify_favourites(report, store, say)
     need = threshold(report)
     if need is None:
         return

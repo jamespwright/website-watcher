@@ -436,3 +436,9 @@ td.title-cell { white-space: normal; min-width: 220px; max-width: 320px; font-we
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 .sheet-scroll:focus { outline: none; }
+
+.star { position: absolute; right: 10px; bottom: 10px; z-index: 1; width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 999px; font-size: 20px; line-height: 1; cursor: pointer; background: rgb(255 255 255 / 92%); color: #5b6573; box-shadow: 0 1px 3px rgb(0 0 0 / 22%); }
+.star[aria-pressed="true"] { color: #e8a317; }
+.star:hover { transform: scale(1.08); }
+.title-cell .star { position: static; display: inline-grid; width: 26px; height: 26px; font-size: 16px; vertical-align: middle; background: transparent; box-shadow: none; color: var(--muted); }
+.title-cell .star[aria-pressed="true"] { color: #e8a317; }

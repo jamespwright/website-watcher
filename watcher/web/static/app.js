@@ -40,6 +40,7 @@ const S = {
   cols: "display",
   onlyNew: false,
   onlyDrops: false,
+  onlyFav: false,
   hideSold: false,
   filters: {}, // field -> {type: "range", min, max} | {type: "set", values: Set}
   item: null,
@@ -127,6 +128,7 @@ function readUrl() {
   S.cols = u.get("cols") === "all" ? "all" : "display";
   S.onlyNew = u.get("new") === "1";
   S.onlyDrops = u.get("drop") === "1";
+  S.onlyFav = u.get("fav") === "1";
   S.hideSold = u.get("sold") === "hide";
   S.item = u.get("item");
   S.filters = {};
@@ -149,6 +151,7 @@ function writeUrl(push = false) {
   if (S.cols === "all") u.set("cols", "all");
   if (S.onlyNew) u.set("new", "1");
   if (S.onlyDrops) u.set("drop", "1");
+  if (S.onlyFav) u.set("fav", "1");
   if (S.hideSold) u.set("sold", "hide");
   for (const [f, flt] of Object.entries(S.filters)) {
     if (flt.type === "range") u.set("f." + f, `${flt.min ?? ""}~${flt.max ?? ""}`);
@@ -253,6 +256,7 @@ function dedupe(rows) {
   for (const g of out) {
     g.key = g.r.key;
     g.isNew = g.copies.every((c) => c.new);
+    g.favourite = g.copies.some((c) => c.favourite);
     g.found = g.copies.map((c) => c.first_seen).filter(Boolean).sort()[0];
     g.image = g.copies.map((c) => c.image).find(Boolean) || null;
   }
@@ -263,7 +267,7 @@ function results() {
   // Rank first so each duplicate group is headed by its best listing, as in the terminal.
   // "New" and "price drop" are judged per merged car, the same way the summary tiles count them.
   return dedupe(filtered(base()).sort(comparator(sortSpecs())))
-    .filter((g) => (!S.onlyNew || g.isNew) && (!S.onlyDrops || dropped(g.r)));
+    .filter((g) => (!S.onlyNew || g.isNew) && (!S.onlyDrops || dropped(g.r)) && (!S.onlyFav || g.favourite));
 }
 
 /* ---------------- facets ---------------- */
@@ -296,6 +300,7 @@ function renderFacets() {
     <div class="facet">
       <label class="toggle">Only new in the last 24 hours <input type="checkbox" data-toggle="onlyNew" ${S.onlyNew ? "checked" : ""}></label>
       <label class="toggle">Only price drops (24 hours) <input type="checkbox" data-toggle="onlyDrops" ${S.onlyDrops ? "checked" : ""}></label>
+      <label class="toggle">Only favourites <input type="checkbox" data-toggle="onlyFav" ${S.onlyFav ? "checked" : ""}></label>
       ${S.view === "all" ? `<label class="toggle">Hide sold <input type="checkbox" data-toggle="hideSold" ${S.hideSold ? "checked" : ""}></label>` : ""}
     </div>`];
   for (const d of defs) {
@@ -341,7 +346,7 @@ function renderFacets() {
 }
 
 function activeCount() {
-  return Object.values(S.filters).filter((f) => (f.type === "range" ? f.min != null || f.max != null : f.values.size)).length + S.onlyNew + S.onlyDrops + S.hideSold;
+  return Object.values(S.filters).filter((f) => (f.type === "range" ? f.min != null || f.max != null : f.values.size)).length + S.onlyNew + S.onlyDrops + S.onlyFav + S.hideSold;
 }
 
 /* ---------------- render ---------------- */
@@ -437,6 +442,7 @@ function renderToolbar(groups) {
   const chips = [`<span class="result-count">${groups.length} result${groups.length === 1 ? "" : "s"}</span>`];
   if (S.onlyNew) chips.push(`<button class="active-chip" data-unset="onlyNew">Only new ${ICON.x}</button>`);
   if (S.onlyDrops) chips.push(`<button class="active-chip" data-unset="onlyDrops">Price drops ${ICON.x}</button>`);
+  if (S.onlyFav) chips.push(`<button class="active-chip" data-unset="onlyFav">Favourites ${ICON.x}</button>`);
   if (S.hideSold) chips.push(`<button class="active-chip" data-unset="hideSold">Hiding sold ${ICON.x}</button>`);
   for (const [f, flt] of Object.entries(S.filters)) {
     let text;
@@ -499,6 +505,11 @@ function statusBadge(r) {
   return `<span class="badge ${s === "sold" ? "bad" : "warn"}">${esc(s[0].toUpperCase() + s.slice(1))}</span>`;
 }
 
+function star(g) {
+  const tip = g.favourite ? "Favourite: you'll be messaged about any change. Click to stop." : "Favourite: message me about any change to this car";
+  return `<button type="button" class="star" data-fav="${esc(g.key)}" aria-pressed="${g.favourite}" aria-label="${esc(tip)}" title="${esc(tip)}">${g.favourite ? "★" : "☆"}</button>`;
+}
+
 function card(g) {
   const r = g.r;
   const hasOpt = S.data.rules.optional.length;
@@ -506,6 +517,7 @@ function card(g) {
     <article class="card ${r.passed ? "" : "rejected"}" data-open="${esc(g.key)}" tabindex="0" role="button" aria-label="${esc(r.title)}">
       <div class="photo">
         ${photo(g)}
+        ${star(g)}
         <div class="badges">
           ${g.isNew ? '<span class="badge new">New</span>' : ""}
           ${statusBadge(r)}
@@ -548,7 +560,7 @@ function table(groups) {
         const r = g.r;
         return `<tr class="${r.passed ? "" : "rejected"}" data-open="${esc(g.key)}">
           <td>${g.image ? `<img class="thumb" src="${esc(g.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">` : '<div class="thumb"></div>'}</td>
-          <td class="title-cell">${esc(r.title)}${g.isNew ? ' <span class="delta down">New</span>' : ""}</td>
+          <td class="title-cell">${star(g)} ${esc(r.title)}${g.isNew ? ' <span class="delta down">New</span>' : ""}</td>
           ${hasOpt ? `<td class="r num">${r.passed ? `${r.score}/${r.max_score}` : "—"}</td>` : ""}
           ${cols.map((c) => `<td class="${right(c) ? "r num" : ""}">${c === "price" ? `${money(r.fields.price)} ${deltaBadge(r)}` : esc(fmt(c, r.fields[c]))}</td>`).join("")}
           <td class="num">${day(g.found)}</td>
@@ -617,7 +629,7 @@ function openDetail(key, push = true) {
   dlg.innerHTML = `
     <button class="btn btn-icon sheet-close" data-close aria-label="Close">${ICON.x}</button>
     <div class="sheet-scroll" tabindex="-1" autofocus>
-      <div class="sheet-photo">${photo(g)}<div class="badges">${g.isNew ? '<span class="badge new">New</span>' : ""}${statusBadge(r)}</div></div>
+      <div class="sheet-photo">${photo(g)}${star(g)}<div class="badges">${g.isNew ? '<span class="badge new">New</span>' : ""}${statusBadge(r)}</div></div>
       <div class="sheet-body">
         <div class="sheet-head">
           <h2 id="detail-title">${esc(r.title)}</h2>
@@ -784,7 +796,7 @@ function setFilter(field, flt) {
 
 function resetFilters() {
   S.filters = {};
-  S.onlyNew = S.onlyDrops = S.hideSold = false;
+  S.onlyNew = S.onlyDrops = S.onlyFav = S.hideSold = false;
   S.q = "";
   render();
 }
@@ -802,6 +814,26 @@ function tileClick(action, pressed) {
   $("#list").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+async function toggleFavourite(key) {
+  const g = findGroup(key);
+  if (!g) return;
+  const on = !g.favourite;
+  try {
+    await api(`/api/profiles/${encodeURIComponent(S.pid)}/favourite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keys: g.copies.map((c) => ({ source: c.source, id: c.id })), on }),
+    });
+  } catch (e) {
+    toast(e.message, true);
+    return;
+  }
+  g.copies.forEach((c) => (c.favourite = on));
+  toast(on ? "Favourited. You'll get a Messenger message when anything about this car changes." : "Removed from favourites.");
+  render();
+  if (S.item && $("#detail").open) openDetail(S.item, false);
+}
+
 function openFilters(open) {
   $("#filters").classList.toggle("open", open);
   $("#scrim").hidden = !open;
@@ -813,6 +845,7 @@ function bind() {
     const t = e.target.closest("button, a, [data-open]");
     if (!t) return;
     if (t.matches("[data-stop]")) return; // site links open normally
+    if (t.dataset.fav) { e.stopPropagation(); toggleFavourite(t.dataset.fav); return; }
     if (t.dataset.view) { S.view = t.dataset.view; render(); return; }
     if (t.dataset.goview) { S.view = t.dataset.goview; render(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     if (t.dataset.layout) { S.layout = t.dataset.layout; render(); return; }
